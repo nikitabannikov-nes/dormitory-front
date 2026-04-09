@@ -1,0 +1,40 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--p-surface-50);
+  color: var(--p-text-color);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Скроллбар */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--p-surface-300);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--p-surface-400);
+}
+
+/* Убираем outline у кнопок PrimeVue при клике мышью */
+.p-button:focus-visible {
+  outline: 2px solid var(--p-primary-400);
+  outline-offset: 2px;
+}
