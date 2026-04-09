@@ -100,7 +100,7 @@ onMounted(async () => {
         <span class="filter-count">Показано: {{ filtered.length }}</span>
       </div>
 
-      <DataTable :value="filtered" :rows="20" paginator stripedRows>
+      <DataTable :value="filtered" :rows="5" paginator stripedRows>
         <Column field="date" header="Дата" sortable>
           <template #body="{ data }">
             {{ new Date(data.date).toLocaleDateString('ru-RU') }}

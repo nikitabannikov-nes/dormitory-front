@@ -8,6 +8,13 @@ export interface UserDto {
   fio: string
   role: Role
   blockId: number | null
+  blockNumber: number | null
+}
+
+export interface UserUpdateDto {
+  fio: string
+  role: Role
+  blockId: number | null
 }
 
 export const usersApi = {
@@ -16,6 +23,9 @@ export const usersApi = {
   getAll: () => api.get<UserDto[]>('/users').then((r) => r.data),
 
   getById: (id: number) => api.get<UserDto>(`/users/${id}`).then((r) => r.data),
+
+  update: (id: number, data: UserUpdateDto) =>
+    api.put<UserDto>(`/users/${id}`, data).then((r) => r.data),
 
   delete: (id: number) => api.delete(`/users/${id}`),
 

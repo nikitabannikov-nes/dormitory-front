@@ -103,7 +103,7 @@ onMounted(async () => {
 
         <Message v-if="!inspections.length" severity="info">Обходов ещё не было</Message>
 
-        <DataTable v-else :value="inspections" :rows="10" paginator stripedRows>
+        <DataTable v-else :value="inspections" :rows="5" paginator stripedRows>
           <Column field="date" header="Дата" sortable>
             <template #body="{ data }">
               {{ new Date(data.date).toLocaleDateString('ru-RU') }}
