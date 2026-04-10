@@ -123,10 +123,10 @@ async function submit() {
             fluid
           >
             <template #option="{ option }">
-              Блок {{ option.number }} — этаж {{ option.floor }}
+              Блок {{ option.number }}
             </template>
             <template #value="{ value }">
-              <span v-if="value">Блок {{ value.number }} — этаж {{ value.floor }}</span>
+              <span v-if="value">Блок {{ value.number }}</span>
               <span v-else class="text-muted">Выберите блок</span>
             </template>
           </Select>
@@ -172,7 +172,7 @@ async function submit() {
       <Divider />
 
       <div class="field">
-        <label class="field-label">Замечания <span class="optional">(необязательно)</span></label>
+        <label class="field-label">Замечания</label>
         <Textarea v-model="comment" rows="3" autoResize fluid placeholder="Опишите замечания по блоку..." />
       </div>
 
