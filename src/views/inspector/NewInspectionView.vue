@@ -216,6 +216,28 @@ async function submit() {
   gap: 1.5rem;
 }
 
+@media (max-width: 767px) {
+  .form-card {
+    padding: 1.25rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .scores-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .scores-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
 .field {
   display: flex;
   flex-direction: column;
