@@ -4,11 +4,13 @@ export interface BlockDto {
   id: number
   number: number
   floor: number
+  hasRoomB: boolean
 }
 
 export interface BlockCreateDto {
   number: number
   floor: number
+  hasRoomB: boolean
 }
 
 export const blocksApi = {

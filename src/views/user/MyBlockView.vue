@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useAuthStore } from '@/stores/auth.store'
 import { inspectionsApi, type InspectionDto } from '@/api/inspections.api'
 import { blocksApi, type BlockDto } from '@/api/blocks.api'
+import { usersApi } from '@/api/users.api'
 import ScoreBar from '@/components/ScoreBar.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -10,9 +10,8 @@ import Tag from 'primevue/tag'
 import ProgressSpinner from 'primevue/progressspinner'
 import Message from 'primevue/message'
 
-const auth = useAuthStore()
-
 const block = ref<BlockDto | null>(null)
+const blockId = ref<number | null>(null)
 interface InspectionRow extends InspectionDto { avgScore: number }
 
 const inspections = ref<InspectionRow[]>([])
@@ -20,7 +19,8 @@ const loading = ref(true)
 const error = ref(false)
 
 function avg(i: InspectionDto): number {
-  return +((i.shower + i.toilet + i.hall + i.kitchen + i.roomA + i.roomB) / 6).toFixed(1)
+  const vals = [i.shower, i.toilet, i.hall, i.kitchen, i.roomA, i.roomB].filter((v) => v != null) as number[]
+  return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
 }
 
 function avgSeverity(val: number): 'success' | 'warn' | 'danger' {
@@ -37,10 +37,12 @@ const avgOverall = computed(() => {
 
 onMounted(async () => {
   try {
-    if (auth.blockId) {
+    const me = await usersApi.getMe()
+    blockId.value = me.blockId
+    if (me.blockId) {
       const [blockData, inspData] = await Promise.all([
-        blocksApi.getById(auth.blockId),
-        inspectionsApi.getByBlock(auth.blockId),
+        blocksApi.getById(me.blockId),
+        inspectionsApi.getByBlock(me.blockId),
       ])
       block.value = blockData
       inspections.value = inspData
@@ -65,7 +67,7 @@ onMounted(async () => {
 
     <Message v-else-if="error" severity="error">Не удалось загрузить данные</Message>
 
-    <Message v-else-if="!auth.blockId" severity="info">
+    <Message v-else-if="!blockId" severity="info">
       Вам ещё не назначен блок. Обратитесь к администратору.
     </Message>
 
@@ -110,12 +112,11 @@ onMounted(async () => {
             </template>
           </Column>
 
-          <Column header="Средняя" sortable sortField="avgScore">
+          <Column header="Средняя" sortable sortField="avgScore" style="text-align: center">
             <template #body="{ data }">
-              <Tag
-                :value="String(avg(data))"
-                :severity="avgSeverity(avg(data))"
-              />
+              <div style="display: flex; justify-content: center">
+                <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
+              </div>
             </template>
           </Column>
 
@@ -133,6 +134,14 @@ onMounted(async () => {
           </Column>
 
           <Column field="inspectorFio" header="Инспектор" />
+          <Column header="Замечания">
+            <template #body="{ data }">
+              <div v-if="data.comment" class="comment-badge">
+                <i class="pi pi-exclamation-circle" />
+                {{ data.comment }}
+              </div>
+            </template>
+          </Column>
         </DataTable>
       </div>
     </template>
@@ -196,5 +205,25 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.comment-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: var(--p-orange-50);
+  border: 1px solid var(--p-orange-200);
+  border-left: 4px solid var(--p-orange-400);
+  color: var(--p-orange-800);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.comment-badge .pi {
+  color: var(--p-orange-500);
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 </style>

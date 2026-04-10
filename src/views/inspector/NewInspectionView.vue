@@ -13,6 +13,7 @@ import DatePicker from 'primevue/datepicker'
 import Slider from 'primevue/slider'
 import Tag from 'primevue/tag'
 import Divider from 'primevue/divider'
+import Textarea from 'primevue/textarea'
 
 const router = useRouter()
 const toast = useToast()
@@ -27,6 +28,7 @@ const submitting = ref(false)
 const selectedBlock = ref<BlockDto | null>(null)
 const date = ref<Date>(new Date())
 const scores = ref({ shower: 3, toilet: 3, hall: 3, kitchen: 3, roomA: 3, roomB: 3 })
+const comment = ref('')
 
 const zoneLabels: Record<keyof typeof scores.value, string> = {
   shower: 'Душевая',
@@ -43,7 +45,9 @@ const availableBlocks = computed(() =>
 )
 
 const avgScore = computed(() => {
-  const vals = Object.values(scores.value)
+  const vals = Object.entries(scores.value)
+    .filter(([key]) => key !== 'roomB' || selectedBlock.value?.hasRoomB)
+    .map(([, v]) => v)
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
 })
 
@@ -85,6 +89,8 @@ async function submit() {
       blockId: selectedBlock.value.id,
       date: date.value.toISOString().slice(0, 10),
       ...scores.value,
+      roomB: selectedBlock.value?.hasRoomB ? scores.value.roomB : null,
+      comment: comment.value.trim() || null,
     })
     toast.add({ severity: 'success', summary: 'Обход сохранён', life: 2000 })
     router.push('/inspections')
@@ -148,6 +154,7 @@ async function submit() {
       <div class="scores-grid">
         <div
           v-for="(val, key) in scores"
+          v-show="key !== 'roomB' || selectedBlock?.hasRoomB"
           :key="key"
           class="score-item"
         >
@@ -155,16 +162,18 @@ async function submit() {
             <span class="score-item__label">{{ zoneLabels[key] }}</span>
             <span class="score-item__value" :style="{ color: scoreColor(val) }">{{ val }}</span>
           </div>
-          <Slider
-            v-model="scores[key]"
-            :min="1"
-            :max="5"
-            :step="1"
-          />
+          <Slider v-model="scores[key]" :min="1" :max="5" :step="1" />
           <div class="score-item__marks">
             <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
           </div>
         </div>
+      </div>
+
+      <Divider />
+
+      <div class="field">
+        <label class="field-label">Замечания <span class="optional">(необязательно)</span></label>
+        <Textarea v-model="comment" rows="3" autoResize fluid placeholder="Опишите замечания по блоку..." />
       </div>
 
       <Divider />
@@ -197,7 +206,8 @@ async function submit() {
   border-radius: 10px;
   padding: 2rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  max-width: 720px;
+  max-width: 760px;
+  margin: 0 auto;
 }
 
 .form-row {
@@ -267,9 +277,28 @@ async function submit() {
   padding: 0 2px;
 }
 
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+}
+
+.optional {
+  font-weight: 400;
+  font-style: italic;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
 }
+
+
 </style>

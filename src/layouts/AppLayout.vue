@@ -41,7 +41,7 @@ function logout() {
     <aside :class="['sidebar', { collapsed }]">
       <div class="sidebar-header">
         <i class="pi pi-building sidebar-logo-icon" />
-        <span v-if="!collapsed" class="sidebar-title">ПО ЖБК</span>
+        <span v-if="!collapsed" class="sidebar-title">ЖБК</span>
         <button class="collapse-btn" @click="collapsed = !collapsed">
           <i :class="collapsed ? 'pi pi-chevron-right' : 'pi pi-chevron-left'" />
         </button>
@@ -94,11 +94,18 @@ function logout() {
   flex-direction: column;
   transition: width 0.2s ease;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .sidebar.collapsed {
   width: 64px;
 }
+
+.sidebar.collapsed .sidebar-header {
+  justify-content: space-between;
+  padding: 1.25rem 0.75rem;
+}
+
 
 .sidebar-header {
   display: flex;
@@ -233,6 +240,7 @@ function logout() {
 /* ─── Main ─── */
 .main-content {
   flex: 1;
+  min-width: 0;
   padding: 2rem;
   overflow: auto;
 }

@@ -38,3 +38,14 @@ body {
   outline: 2px solid var(--p-primary-400);
   outline-offset: 2px;
 }
+
+/* Заголовки и содержимое ячеек таблиц по центру */
+.p-datatable-thead th {
+  text-align: center !important;
+}
+.p-datatable-thead th div {
+  justify-content: center;
+}
+.p-datatable-tbody td {
+  text-align: center !important;
+}

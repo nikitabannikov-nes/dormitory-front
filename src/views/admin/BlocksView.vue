@@ -10,6 +10,7 @@ import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
 import ProgressSpinner from 'primevue/progressspinner'
+import Checkbox from 'primevue/checkbox'
 
 const toast = useToast()
 const confirm = useConfirm()
@@ -19,7 +20,7 @@ const loading = ref(true)
 const showDialog = ref(false)
 const saving = ref(false)
 
-const form = ref({ number: null as number | null, floor: null as number | null })
+const form = ref({ number: null as number | null, floor: null as number | null, hasRoomB: true })
 
 async function load() {
   loading.value = true
@@ -34,11 +35,11 @@ async function createBlock() {
   if (!form.value.number || !form.value.floor) return
   saving.value = true
   try {
-    const created = await blocksApi.create({ number: form.value.number, floor: form.value.floor })
+    const created = await blocksApi.create({ number: form.value.number, floor: form.value.floor, hasRoomB: form.value.hasRoomB })
     blocks.value.push(created)
     blocks.value.sort((a, b) => a.number - b.number)
     showDialog.value = false
-    form.value = { number: null, floor: null }
+    form.value = { number: null, floor: null, hasRoomB: true }
     toast.add({ severity: 'success', summary: 'Блок добавлен', life: 2000 })
   } catch (err) {
     toast.add({ severity: 'error', summary: 'Ошибка', detail: extractErrorMessage(err, 'Не удалось создать блок'), life: 4000 })
@@ -110,6 +111,10 @@ onMounted(load)
           <label>Этаж</label>
           <InputNumber v-model="form.floor" :min="1" :max="20" fluid />
         </div>
+        <div class="field field--row">
+          <Checkbox v-model="form.hasRoomB" :binary="true" inputId="hasRoomB" />
+          <label for="hasRoomB">Есть комната Б</label>
+        </div>
       </div>
       <template #footer>
         <Button label="Отмена" severity="secondary" outlined @click="showDialog = false" />
@@ -160,4 +165,12 @@ onMounted(load)
   font-weight: 500;
   color: var(--p-text-muted-color);
 }
+
+.field--row {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.field--row label { cursor: pointer; }
 </style>

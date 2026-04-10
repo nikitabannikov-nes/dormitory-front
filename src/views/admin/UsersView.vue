@@ -66,7 +66,7 @@ async function saveEdit() {
     const dto: UserUpdateDto = {
       fio: editForm.value.fio,
       role: editForm.value.role,
-      blockId: editForm.value.role === 'USER' ? editForm.value.blockId : null,
+      blockId: editForm.value.blockId,
     }
     const updated = await usersApi.update(editForm.value.id, dto)
     const idx = users.value.findIndex((u) => u.id === editForm.value.id)
@@ -81,8 +81,13 @@ async function saveEdit() {
 }
 
 function deleteUser(user: UserDto) {
+  const hasInspections = user.role === 'INSPECTOR' || user.role === 'ADMIN'
+  const message = hasInspections
+    ? `Удалить пользователя «${user.fio}»? Все закреплённые за ним обходы также будут удалены.`
+    : `Удалить пользователя «${user.fio}»?`
+
   confirm.require({
-    message: `Удалить пользователя «${user.fio}»?`,
+    message,
     header: 'Подтверждение',
     icon: 'pi pi-exclamation-triangle',
     rejectLabel: 'Отмена',
@@ -186,7 +191,7 @@ onMounted(load)
           />
         </div>
 
-        <div class="field" v-if="editForm.role === 'USER'">
+        <div class="field">
           <label>Блок</label>
           <Select
             v-model="editForm.blockId"

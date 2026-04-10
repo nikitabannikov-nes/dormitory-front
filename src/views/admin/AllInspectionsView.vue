@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { inspectionsApi, type InspectionDto } from '@/api/inspections.api'
+import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 import ScoreBar from '@/components/ScoreBar.vue'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
@@ -12,13 +14,17 @@ import Button from 'primevue/button'
 
 interface InspectionRow extends InspectionDto { avgScore: number }
 
+const toast = useToast()
+const confirm = useConfirm()
+
 const inspections = ref<InspectionRow[]>([])
 const loading = ref(true)
 const search = ref('')
 const dateRange = ref<[Date, Date] | null>(null)
 
 function avg(i: InspectionDto): number {
-  return +((i.shower + i.toilet + i.hall + i.kitchen + i.roomA + i.roomB) / 6).toFixed(1)
+  const vals = [i.shower, i.toilet, i.hall, i.kitchen, i.roomA, i.roomB].filter((v) => v != null) as number[]
+  return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
 }
 
 function avgSeverity(val: number): 'success' | 'warn' | 'danger' {
@@ -55,6 +61,26 @@ function clearFilters() {
   dateRange.value = null
 }
 
+function deleteInspection(row: InspectionRow) {
+  confirm.require({
+    message: `Удалить обход от ${new Date(row.date).toLocaleDateString('ru-RU')} (блок ${row.blockNumber})?`,
+    header: 'Подтверждение',
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: 'Отмена',
+    acceptLabel: 'Удалить',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      try {
+        await inspectionsApi.delete(row.id)
+        inspections.value = inspections.value.filter((i) => i.id !== row.id)
+        toast.add({ severity: 'success', summary: 'Удалено', life: 2000 })
+      } catch {
+        toast.add({ severity: 'error', summary: 'Ошибка при удалении', life: 3000 })
+      }
+    },
+  })
+}
+
 onMounted(async () => {
   try {
     const data = await inspectionsApi.getAll()
@@ -81,14 +107,14 @@ onMounted(async () => {
         <InputText
           v-model="search"
           placeholder="Блок или инспектор..."
-          style="width: 240px"
+          class="filter-input"
         />
         <DatePicker
           v-model="dateRange"
           selectionMode="range"
           dateFormat="dd.mm.yy"
           placeholder="Период"
-          style="width: 240px"
+          class="filter-input"
         />
         <Button
           icon="pi pi-times"
@@ -107,13 +133,21 @@ onMounted(async () => {
           </template>
         </Column>
         <Column field="blockNumber" header="Блок" sortable />
-        <Column field="inspectorFio" header="Инспектор" sortable />
-        <Column header="Ср. оценка" sortable sortField="avgScore">
+        <Column field="inspectorFio" header="Инспектор" sortable>
           <template #body="{ data }">
-            <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
+            <div style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+              {{ data.inspectorFio }}
+            </div>
           </template>
         </Column>
-        <Column header="Оценки по зонам" style="min-width: 260px">
+        <Column header="Ср." sortable sortField="avgScore" style="width: 1px; white-space: nowrap; text-align: center">
+          <template #body="{ data }">
+            <div style="display: flex; justify-content: center">
+              <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
+            </div>
+          </template>
+        </Column>
+        <Column header="Оценки по зонам">
           <template #body="{ data }">
             <div class="scores-col">
               <ScoreBar :value="data.shower" label="Душ" />
@@ -123,6 +157,26 @@ onMounted(async () => {
               <ScoreBar :value="data.roomA" label="Комн. А" />
               <ScoreBar :value="data.roomB" label="Комн. Б" />
             </div>
+          </template>
+        </Column>
+        <Column header="Замечания">
+          <template #body="{ data }">
+            <div v-if="data.comment" class="comment-badge">
+              <i class="pi pi-exclamation-circle" />
+              {{ data.comment }}
+            </div>
+          </template>
+        </Column>
+        <Column style="width: 60px">
+          <template #body="{ data }">
+            <Button
+              icon="pi pi-trash"
+              size="small"
+              text
+              severity="danger"
+              tooltip="Удалить"
+              @click="deleteInspection(data)"
+            />
           </template>
         </Column>
       </DataTable>
@@ -148,6 +202,12 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.filter-input {
+  min-width: 160px;
+  flex: 1 1 160px;
+  max-width: 260px;
+}
+
 .filter-count {
   font-size: 0.85rem;
   color: var(--p-text-muted-color);
@@ -158,5 +218,26 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.comment-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: var(--p-orange-50);
+  border: 1px solid var(--p-orange-200);
+  border-left: 4px solid var(--p-orange-400);
+  color: var(--p-orange-800);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  max-width: 280px;
+}
+
+.comment-badge .pi {
+  color: var(--p-orange-500);
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 </style>

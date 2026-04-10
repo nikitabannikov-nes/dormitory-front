@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = defineProps<{ value: number; label?: string }>()
+const props = defineProps<{ value: number | null; label?: string }>()
 
 const color = computed(() => {
+  if (props.value == null) return 'none'
   if (props.value >= 4) return 'green'
   if (props.value >= 3) return 'orange'
   return 'red'
 })
 
-const width = computed(() => `${(props.value / 5) * 100}%`)
+const width = computed(() => props.value != null ? `${(props.value / 5) * 100}%` : '0%')
 </script>
 
 <template>
@@ -18,7 +19,9 @@ const width = computed(() => `${(props.value / 5) * 100}%`)
     <div class="bar-track">
       <div class="bar-fill" :class="`bar-fill--${color}`" :style="{ width }" />
     </div>
-    <span class="score-value" :class="`score-value--${color}`">{{ value }}</span>
+    <span class="score-value" :class="value != null ? `score-value--${color}` : 'score-value--none'">
+      {{ value ?? '—' }}
+    </span>
   </div>
 </template>
 
@@ -38,6 +41,7 @@ const width = computed(() => `${(props.value / 5) * 100}%`)
 
 .bar-track {
   flex: 1;
+  min-width: 60px;
   height: 6px;
   background: var(--p-surface-200);
   border-radius: 3px;
@@ -65,4 +69,5 @@ const width = computed(() => `${(props.value / 5) * 100}%`)
 .score-value--green  { color: var(--p-green-600); }
 .score-value--orange { color: var(--p-orange-600); }
 .score-value--red    { color: var(--p-red-600); }
+.score-value--none   { color: var(--p-text-muted-color); }
 </style>

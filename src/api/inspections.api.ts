@@ -13,7 +13,8 @@ export interface InspectionDto {
   hall: number
   kitchen: number
   roomA: number
-  roomB: number
+  roomB: number | null
+  comment: string | null
 }
 
 export interface InspectionCreateDto {
@@ -24,7 +25,8 @@ export interface InspectionCreateDto {
   hall: number
   kitchen: number
   roomA: number
-  roomB: number
+  roomB: number | null
+  comment: string | null
 }
 
 export const inspectionsApi = {
@@ -37,4 +39,6 @@ export const inspectionsApi = {
 
   create: (data: InspectionCreateDto) =>
     api.post<InspectionDto>('/inspections', data).then((r) => r.data),
+
+  delete: (id: number) => api.delete(`/inspections/${id}`),
 }
