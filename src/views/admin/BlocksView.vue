@@ -83,21 +83,23 @@ onMounted(load)
     </div>
 
     <div v-else class="card">
-      <DataTable :value="blocks" :rows="20" paginator stripedRows>
-        <Column field="number" header="Номер блока" sortable />
-        <Column field="floor" header="Этаж" sortable />
-        <Column header="Действия" style="width: 100px">
-          <template #body="{ data }">
-            <Button
-              icon="pi pi-trash"
-              size="small"
-              text
-              severity="danger"
-              @click="deleteBlock(data)"
-            />
-          </template>
-        </Column>
-      </DataTable>
+      <div class="table-wrapper">
+        <DataTable :value="blocks" :rows="20" paginator stripedRows>
+          <Column field="number" header="Номер блока" sortable style="min-width: 120px" />
+          <Column field="floor" header="Этаж" sortable style="min-width: 80px" />
+          <Column header="Действия" style="width: 100px; min-width: 80px">
+            <template #body="{ data }">
+              <Button
+                icon="pi pi-trash"
+                size="small"
+                text
+                severity="danger"
+                @click="deleteBlock(data)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
     </div>
 
     <!-- Диалог добавления -->

@@ -105,44 +105,46 @@ onMounted(async () => {
 
         <Message v-if="!inspections.length" severity="info">Обходов ещё не было</Message>
 
-        <DataTable v-else :value="inspections" :rows="5" paginator stripedRows>
-          <Column field="date" header="Дата" sortable>
-            <template #body="{ data }">
-              {{ new Date(data.date).toLocaleDateString('ru-RU') }}
-            </template>
-          </Column>
+        <div v-else class="table-wrapper">
+          <DataTable :value="inspections" :rows="5" paginator stripedRows>
+            <Column field="date" header="Дата" sortable style="min-width: 100px">
+              <template #body="{ data }">
+                {{ new Date(data.date).toLocaleDateString('ru-RU') }}
+              </template>
+            </Column>
 
-          <Column header="Средняя" sortable sortField="avgScore" style="text-align: center">
-            <template #body="{ data }">
-              <div style="display: flex; justify-content: center">
-                <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
-              </div>
-            </template>
-          </Column>
+            <Column header="Ср." sortable sortField="avgScore" style="min-width: 70px; text-align: center">
+              <template #body="{ data }">
+                <div style="display: flex; justify-content: center">
+                  <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
+                </div>
+              </template>
+            </Column>
 
-          <Column header="Оценки по зонам" style="min-width: 260px">
-            <template #body="{ data }">
-              <div class="scores-grid">
-                <ScoreBar :value="data.shower" label="Душ" />
-                <ScoreBar :value="data.toilet" label="Туалет" />
-                <ScoreBar :value="data.hall" label="Коридор" />
-                <ScoreBar :value="data.kitchen" label="Кухня" />
-                <ScoreBar :value="data.roomA" label="Комн. А" />
-                <ScoreBar :value="data.roomB" label="Комн. Б" />
-              </div>
-            </template>
-          </Column>
+            <Column header="Оценки по зонам" style="min-width: 220px">
+              <template #body="{ data }">
+                <div class="scores-grid">
+                  <ScoreBar :value="data.shower" label="Душ" />
+                  <ScoreBar :value="data.toilet" label="Туалет" />
+                  <ScoreBar :value="data.hall" label="Коридор" />
+                  <ScoreBar :value="data.kitchen" label="Кухня" />
+                  <ScoreBar :value="data.roomA" label="Комн. А" />
+                  <ScoreBar :value="data.roomB" label="Комн. Б" />
+                </div>
+              </template>
+            </Column>
 
-          <Column field="inspectorFio" header="Инспектор" />
-          <Column header="Замечания">
-            <template #body="{ data }">
-              <div v-if="data.comment" class="comment-badge">
-                <i class="pi pi-exclamation-circle" />
-                {{ data.comment }}
-              </div>
-            </template>
-          </Column>
-        </DataTable>
+            <Column field="inspectorFio" header="Инспектор" style="min-width: 120px" />
+            <Column header="Замечания" style="min-width: 180px">
+              <template #body="{ data }">
+                <div v-if="data.comment" class="comment-badge">
+                  <i class="pi pi-exclamation-circle" />
+                  {{ data.comment }}
+                </div>
+              </template>
+            </Column>
+          </DataTable>
+        </div>
       </div>
     </template>
   </div>
@@ -170,6 +172,7 @@ onMounted(async () => {
   gap: 1rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   min-width: 160px;
+  flex: 1 1 140px;
 }
 
 .info-card__icon {

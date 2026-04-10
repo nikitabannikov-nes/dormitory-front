@@ -97,60 +97,62 @@ onMounted(async () => {
           <InputText
             v-model="search"
             placeholder="Поиск по блоку или дате..."
-            style="width: 280px"
+            class="search-input"
           />
         </IconField>
       </div>
 
-      <DataTable :value="filtered" :rows="5" paginator stripedRows>
-        <Column field="date" header="Дата" sortable>
-          <template #body="{ data }">
-            {{ new Date(data.date).toLocaleDateString('ru-RU') }}
-          </template>
-        </Column>
-        <Column field="blockNumber" header="Блок" sortable />
+      <div class="table-wrapper">
+        <DataTable :value="filtered" :rows="5" paginator stripedRows>
+          <Column field="date" header="Дата" sortable style="min-width: 100px">
+            <template #body="{ data }">
+              {{ new Date(data.date).toLocaleDateString('ru-RU') }}
+            </template>
+          </Column>
+          <Column field="blockNumber" header="Блок" sortable style="min-width: 70px" />
 
-        <Column header="Ср. оценка" sortable sortField="avgScore" style="text-align: center">
-          <template #body="{ data }">
-            <div style="display: flex; justify-content: center">
-              <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
-            </div>
-          </template>
-        </Column>
+          <Column header="Ср." sortable sortField="avgScore" style="min-width: 70px; text-align: center">
+            <template #body="{ data }">
+              <div style="display: flex; justify-content: center">
+                <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
+              </div>
+            </template>
+          </Column>
 
-        <Column header="Оценки по зонам" style="min-width: 260px">
-          <template #body="{ data }">
-            <div class="scores-col">
-              <ScoreBar :value="data.shower" label="Душ" />
-              <ScoreBar :value="data.toilet" label="Туалет" />
-              <ScoreBar :value="data.hall" label="Коридор" />
-              <ScoreBar :value="data.kitchen" label="Кухня" />
-              <ScoreBar :value="data.roomA" label="Комн. А" />
-              <ScoreBar :value="data.roomB" label="Комн. Б" />
-            </div>
-          </template>
-        </Column>
-        <Column header="Замечания">
-          <template #body="{ data }">
-            <div v-if="data.comment" class="comment-badge">
-              <i class="pi pi-exclamation-circle" />
-              {{ data.comment }}
-            </div>
-          </template>
-        </Column>
-        <Column style="width: 60px">
-          <template #body="{ data }">
-            <Button
-              icon="pi pi-trash"
-              size="small"
-              text
-              severity="danger"
-              tooltip="Удалить"
-              @click="deleteInspection(data)"
-            />
-          </template>
-        </Column>
-      </DataTable>
+          <Column header="Оценки по зонам" style="min-width: 220px">
+            <template #body="{ data }">
+              <div class="scores-col">
+                <ScoreBar :value="data.shower" label="Душ" />
+                <ScoreBar :value="data.toilet" label="Туалет" />
+                <ScoreBar :value="data.hall" label="Коридор" />
+                <ScoreBar :value="data.kitchen" label="Кухня" />
+                <ScoreBar :value="data.roomA" label="Комн. А" />
+                <ScoreBar :value="data.roomB" label="Комн. Б" />
+              </div>
+            </template>
+          </Column>
+          <Column header="Замечания" style="min-width: 180px">
+            <template #body="{ data }">
+              <div v-if="data.comment" class="comment-badge">
+                <i class="pi pi-exclamation-circle" />
+                {{ data.comment }}
+              </div>
+            </template>
+          </Column>
+          <Column style="width: 60px; min-width: 60px">
+            <template #body="{ data }">
+              <Button
+                icon="pi pi-trash"
+                size="small"
+                text
+                severity="danger"
+                tooltip="Удалить"
+                @click="deleteInspection(data)"
+              />
+            </template>
+          </Column>
+        </DataTable>
+      </div>
     </div>
   </div>
 </template>
@@ -164,6 +166,11 @@ onMounted(async () => {
 }
 
 .page-title { font-size: 1.5rem; font-weight: 700; }
+
+.search-input {
+  width: 280px;
+  max-width: 100%;
+}
 
 .card {
   background: var(--p-surface-0);

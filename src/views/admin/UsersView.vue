@@ -117,54 +117,56 @@ onMounted(load)
     </div>
 
     <div v-else class="card">
-      <DataTable :value="users" :rows="10" paginator stripedRows>
-        <Column field="fio" header="ФИО" sortable />
-        <Column field="username" header="Логин" />
-        <Column header="Роль" sortable sortField="role">
-          <template #body="{ data }">
-            <RoleChip :role="data.role" />
-          </template>
-        </Column>
-        <Column header="Блок">
-          <template #body="{ data }">
-            <Tag
-              v-if="data.blockNumber"
-              :value="`Блок ${data.blockNumber}`"
-              severity="secondary"
-            />
-            <span v-else class="text-muted">—</span>
-          </template>
-        </Column>
-        <Column header="Действия" style="width: 140px">
-          <template #body="{ data }">
-            <div class="flex gap-2">
-              <Button
-                icon="pi pi-pencil"
-                size="small"
-                text
-                tooltip="Редактировать"
-                @click="openEdit(data)"
+      <div class="table-wrapper">
+        <DataTable :value="users" :rows="10" paginator stripedRows>
+          <Column field="fio" header="ФИО" sortable style="min-width: 140px" />
+          <Column field="username" header="Логин" style="min-width: 110px" />
+          <Column header="Роль" sortable sortField="role" style="min-width: 110px">
+            <template #body="{ data }">
+              <RoleChip :role="data.role" />
+            </template>
+          </Column>
+          <Column header="Блок" style="min-width: 90px">
+            <template #body="{ data }">
+              <Tag
+                v-if="data.blockNumber"
+                :value="`Блок ${data.blockNumber}`"
+                severity="secondary"
               />
-              <Button
-                v-if="data.role === 'INSPECTOR' || data.role === 'ADMIN'"
-                icon="pi pi-map"
-                size="small"
-                text
-                tooltip="Назначить этажи"
-                @click="router.push(`/admin/users/${data.id}/floors`)"
-              />
-              <Button
-                icon="pi pi-trash"
-                size="small"
-                text
-                severity="danger"
-                tooltip="Удалить"
-                @click="deleteUser(data)"
-              />
-            </div>
-          </template>
-        </Column>
-      </DataTable>
+              <span v-else class="text-muted">—</span>
+            </template>
+          </Column>
+          <Column header="Действия" style="width: 140px; min-width: 120px">
+            <template #body="{ data }">
+              <div class="flex gap-2">
+                <Button
+                  icon="pi pi-pencil"
+                  size="small"
+                  text
+                  tooltip="Редактировать"
+                  @click="openEdit(data)"
+                />
+                <Button
+                  v-if="data.role === 'INSPECTOR' || data.role === 'ADMIN'"
+                  icon="pi pi-map"
+                  size="small"
+                  text
+                  tooltip="Назначить этажи"
+                  @click="router.push(`/admin/users/${data.id}/floors`)"
+                />
+                <Button
+                  icon="pi pi-trash"
+                  size="small"
+                  text
+                  severity="danger"
+                  tooltip="Удалить"
+                  @click="deleteUser(data)"
+                />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </div>
     </div>
 
     <!-- Диалог редактирования -->

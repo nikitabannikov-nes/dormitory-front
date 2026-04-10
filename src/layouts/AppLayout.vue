@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
 
@@ -7,6 +7,19 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const collapsed = ref(false)
+const mobileOpen = ref(false)
+const isMobile = ref(false)
+
+function checkMobile() {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) mobileOpen.value = false
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+onUnmounted(() => window.removeEventListener('resize', checkMobile))
 
 const navItems = computed(() => {
   const items = []
@@ -29,6 +42,11 @@ const navItems = computed(() => {
   return items
 })
 
+function navigate(to: string) {
+  mobileOpen.value = false
+  router.push(to)
+}
+
 function logout() {
   auth.signOut()
   router.push('/login')
@@ -37,12 +55,37 @@ function logout() {
 
 <template>
   <div class="app-layout">
+
+    <!-- Мобильный топбар -->
+    <header v-if="isMobile" class="mobile-topbar">
+      <button class="topbar-btn" @click="mobileOpen = true">
+        <i class="pi pi-bars" />
+      </button>
+      <span class="topbar-title">
+        <i class="pi pi-building" />
+        ЖБК
+      </span>
+      <button class="topbar-btn" @click="logout" title="Выйти">
+        <i class="pi pi-sign-out" />
+      </button>
+    </header>
+
+    <!-- Backdrop (мобилка) -->
+    <div
+      v-if="isMobile && mobileOpen"
+      class="sidebar-backdrop"
+      @click="mobileOpen = false"
+    />
+
     <!-- Сайдбар -->
-    <aside :class="['sidebar', { collapsed }]">
+    <aside :class="['sidebar', { collapsed: !isMobile && collapsed, 'mobile-open': isMobile && mobileOpen, 'mobile-sidebar': isMobile }]">
       <div class="sidebar-header">
         <i class="pi pi-building sidebar-logo-icon" />
-        <span v-if="!collapsed" class="sidebar-title">ЖБК</span>
-        <button class="collapse-btn" @click="collapsed = !collapsed">
+        <span v-if="!collapsed || isMobile" class="sidebar-title">ЖБК</span>
+        <button v-if="isMobile" class="collapse-btn" @click="mobileOpen = false">
+          <i class="pi pi-times" />
+        </button>
+        <button v-else class="collapse-btn" @click="collapsed = !collapsed">
           <i :class="collapsed ? 'pi pi-chevron-right' : 'pi pi-chevron-left'" />
         </button>
       </div>
@@ -54,14 +97,15 @@ function logout() {
           :to="item.to"
           class="nav-item"
           active-class="nav-item--active"
+          @click="mobileOpen = false"
         >
           <i :class="item.icon" />
-          <span v-if="!collapsed" class="nav-label">{{ item.label }}</span>
+          <span v-if="!collapsed || isMobile" class="nav-label">{{ item.label }}</span>
         </RouterLink>
       </nav>
 
       <div class="sidebar-footer">
-        <div class="user-info" v-if="!collapsed">
+        <div class="user-info" v-if="!collapsed || isMobile">
           <span class="user-fio">{{ auth.fio || auth.username }}</span>
           <span class="user-role">{{ auth.role }}</span>
         </div>
@@ -72,7 +116,7 @@ function logout() {
     </aside>
 
     <!-- Контент -->
-    <main class="main-content">
+    <main :class="['main-content', { 'mobile-main': isMobile }]">
       <slot />
     </main>
   </div>
@@ -83,6 +127,61 @@ function logout() {
   display: flex;
   min-height: 100vh;
   background: var(--p-surface-50);
+}
+
+/* ─── Mobile topbar ─── */
+.mobile-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--p-surface-0);
+  border-bottom: 1px solid var(--p-surface-200);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  z-index: 200;
+}
+
+.topbar-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--p-text-color);
+}
+
+.topbar-title .pi {
+  color: var(--p-primary-500);
+  font-size: 1.2rem;
+}
+
+.topbar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--p-text-color);
+  padding: 0.5rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  font-size: 1.1rem;
+  transition: background 0.15s;
+}
+
+.topbar-btn:hover {
+  background: var(--p-surface-100);
+}
+
+/* ─── Backdrop ─── */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 299;
 }
 
 /* ─── Sidebar ─── */
@@ -106,6 +205,22 @@ function logout() {
   padding: 1.25rem 0.75rem;
 }
 
+/* Мобильный сайдбар */
+.sidebar.mobile-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 280px;
+  z-index: 300;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+}
+
+.sidebar.mobile-sidebar.mobile-open {
+  transform: translateX(0);
+}
 
 .sidebar-header {
   display: flex;
@@ -153,17 +268,18 @@ function logout() {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 0.75rem;
   border-radius: 8px;
   text-decoration: none;
   color: var(--p-text-color);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
   overflow: hidden;
@@ -243,5 +359,10 @@ function logout() {
   min-width: 0;
   padding: 2rem;
   overflow: auto;
+}
+
+.main-content.mobile-main {
+  padding: 1rem;
+  padding-top: calc(56px + 1rem);
 }
 </style>
