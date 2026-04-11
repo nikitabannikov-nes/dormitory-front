@@ -97,7 +97,7 @@ async function submit() {
       blockId: selectedBlock.value.id,
       date: date.value.toISOString().slice(0, 10),
       ...scores.value,
-      roomB: selectedBlock.value?.hasRoomB ? scores.value.roomB : null,
+      roomB: selectedBlock.value?.hasRoomB ? (scores.value['roomB'] ?? null) : null,
       comment: comment.value.trim() || null,
     })
     toast.add({ severity: 'success', summary: 'Обход сохранён', life: 2000 })
@@ -175,7 +175,7 @@ async function submit() {
                 @click="toggleScore(key)"
                 :title="scores[key] === null ? 'Отметить как проверено' : 'Закрыта / не проверялась'"
               ><i :class="scores[key] === null ? 'pi pi-lock' : 'pi pi-unlock'" /></button>
-              <span v-if="scores[key] !== null" class="score-item__value" :style="{ color: scoreColor(scores[key]) }">{{ scores[key] }}</span>
+              <span v-if="scores[key] !== null" class="score-item__value" :style="{ color: scoreColor(scores[key] ?? null) }">{{ scores[key] }}</span>
               <span v-else class="score-item__value score-item__value--none">—</span>
             </div>
           </div>
