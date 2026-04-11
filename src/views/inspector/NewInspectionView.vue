@@ -85,6 +85,10 @@ onMounted(async () => {
   }
 })
 
+function toLocalDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 async function submit() {
   if (!selectedBlock.value || !date.value) {
     toast.add({ severity: 'warn', summary: 'Заполните все поля', life: 2000 })
@@ -95,7 +99,7 @@ async function submit() {
   try {
     await inspectionsApi.create({
       blockId: selectedBlock.value.id,
-      date: date.value.toISOString().slice(0, 10),
+      date: toLocalDateStr(date.value),
       shower: scores.value['shower'] ?? null,
       toilet: scores.value['toilet'] ?? null,
       hall: scores.value['hall'] ?? null,
