@@ -40,9 +40,10 @@ function avgSeverity(val: number | null): 'success' | 'warn' | 'danger' | 'secon
 const filtered = computed(() => {
   if (!search.value) return inspections.value
   const q = search.value.toLowerCase()
-  return inspections.value.filter(
-    (i) => String(i.blockNumber).includes(q) || i.date.includes(q),
-  )
+  return inspections.value.filter((i) => {
+    const localDate = new Date(i.date).toLocaleDateString('ru-RU')
+    return String(i.blockNumber).includes(q) || localDate.includes(q)
+  })
 })
 
 function deleteInspection(row: InspectionRow) {
