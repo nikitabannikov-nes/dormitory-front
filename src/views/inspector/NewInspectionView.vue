@@ -27,7 +27,11 @@ const submitting = ref(false)
 // Форма
 const selectedBlock = ref<BlockDto | null>(null)
 const date = ref<Date>(new Date())
-const scores = ref({ shower: 3, toilet: 3, hall: 3, kitchen: 3, roomA: 3, roomB: 3 })
+const scores = ref<Record<string, number | null>>({ shower: 3, toilet: 3, hall: 3, kitchen: 3, roomA: 3, roomB: 3 })
+
+function toggleScore(key: string) {
+  scores.value[key] = scores.value[key] === null ? 3 : null
+}
 const comment = ref('')
 
 const zoneLabels: Record<keyof typeof scores.value, string> = {
@@ -44,20 +48,24 @@ const availableBlocks = computed(() =>
   allBlocks.value.filter((b) => assignedFloors.value.includes(b.floor)),
 )
 
-const avgScore = computed(() => {
+const avgScore = computed<number | null>(() => {
   const vals = Object.entries(scores.value)
     .filter(([key]) => key !== 'roomB' || selectedBlock.value?.hasRoomB)
     .map(([, v]) => v)
+    .filter((v): v is number => v !== null)
+  if (vals.length === 0) return null
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
 })
 
-function avgSeverity(val: number): 'success' | 'warn' | 'danger' {
+function avgSeverity(val: number | null): 'success' | 'warn' | 'danger' | 'secondary' {
+  if (val === null) return 'secondary'
   if (val >= 4) return 'success'
   if (val >= 3) return 'warn'
   return 'danger'
 }
 
-function scoreColor(val: number) {
+function scoreColor(val: number | null) {
+  if (val === null) return 'var(--p-text-muted-color)'
   if (val >= 4) return '#22c55e'
   if (val >= 3) return '#f97316'
   return '#ef4444'
@@ -147,25 +155,37 @@ async function submit() {
       <div class="scores-header">
         <span class="scores-title">Оценки зон (1 — плохо, 5 — отлично)</span>
         <div class="avg-badge">
-          Средняя: <Tag :value="String(avgScore)" :severity="avgSeverity(avgScore)" class="ml-1" />
+          Средняя: <Tag :value="avgScore !== null ? String(avgScore) : '—'" :severity="avgSeverity(avgScore)" class="ml-1" />
         </div>
       </div>
 
       <div class="scores-grid">
         <div
-          v-for="(val, key) in scores"
+          v-for="(_, key) in scores"
           v-show="key !== 'roomB' || selectedBlock?.hasRoomB"
           :key="key"
           class="score-item"
         >
           <div class="score-item__header">
             <span class="score-item__label">{{ zoneLabels[key] }}</span>
-            <span class="score-item__value" :style="{ color: scoreColor(val) }">{{ val }}</span>
+            <div class="score-item__right">
+              <button
+                class="closed-btn"
+                :class="{ 'closed-btn--active': scores[key] === null }"
+                @click="toggleScore(key)"
+                :title="scores[key] === null ? 'Отметить как проверено' : 'Закрыта / не проверялась'"
+              ><i :class="scores[key] === null ? 'pi pi-lock' : 'pi pi-unlock'" /></button>
+              <span v-if="scores[key] !== null" class="score-item__value" :style="{ color: scoreColor(scores[key]) }">{{ scores[key] }}</span>
+              <span v-else class="score-item__value score-item__value--none">—</span>
+            </div>
           </div>
-          <Slider v-model="scores[key]" :min="1" :max="5" :step="1" />
-          <div class="score-item__marks">
-            <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
-          </div>
+          <template v-if="scores[key] !== null">
+            <Slider v-model="scores[key]" :min="1" :max="5" :step="1" />
+            <div class="score-item__marks">
+              <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+            </div>
+          </template>
+          <p v-else class="score-item__closed-hint">закрыта / не проверялась</p>
         </div>
       </div>
 
@@ -276,7 +296,39 @@ async function submit() {
 .score-item__header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 0.5rem;
+}
+
+.score-item__right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.closed-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--p-text-muted-color);
+  font-size: 0.8rem;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.closed-btn:hover {
+  color: var(--p-text-color);
+  background: var(--p-surface-100);
+}
+
+.closed-btn--active {
+  color: var(--p-orange-500);
+}
+
+.closed-btn--active:hover {
+  color: var(--p-orange-600);
 }
 
 .score-item__label {
@@ -288,6 +340,19 @@ async function submit() {
   font-size: 1.1rem;
   font-weight: 700;
   transition: color 0.2s;
+  width: 1.2rem;
+  text-align: right;
+}
+
+.score-item__value--none {
+  color: var(--p-text-muted-color);
+}
+
+.score-item__closed-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
 }
 
 .score-item__marks {

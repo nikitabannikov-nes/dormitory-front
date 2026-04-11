@@ -12,27 +12,29 @@ import Message from 'primevue/message'
 
 const block = ref<BlockDto | null>(null)
 const blockId = ref<number | null>(null)
-interface InspectionRow extends InspectionDto { avgScore: number }
+interface InspectionRow extends InspectionDto { avgScore: number | null }
 
 const inspections = ref<InspectionRow[]>([])
 const loading = ref(true)
 const error = ref(false)
 
-function avg(i: InspectionDto): number {
-  const vals = [i.shower, i.toilet, i.hall, i.kitchen, i.roomA, i.roomB].filter((v) => v != null) as number[]
+function avg(i: InspectionDto): number | null {
+  const vals = [i.shower, i.toilet, i.hall, i.kitchen, i.roomA, i.roomB].filter((v): v is number => v != null)
+  if (vals.length === 0) return null
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
 }
 
-function avgSeverity(val: number): 'success' | 'warn' | 'danger' {
+function avgSeverity(val: number | null): 'success' | 'warn' | 'danger' | 'secondary' {
+  if (val === null) return 'secondary'
   if (val >= 4) return 'success'
   if (val >= 3) return 'warn'
   return 'danger'
 }
 
 const avgOverall = computed(() => {
-  if (!inspections.value.length) return null
-  const sum = inspections.value.reduce((acc, i) => acc + avg(i), 0)
-  return +(sum / inspections.value.length).toFixed(1)
+  const scores = inspections.value.map((i) => avg(i)).filter((v): v is number => v !== null)
+  if (!scores.length) return null
+  return +(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)
 })
 
 onMounted(async () => {
@@ -116,7 +118,7 @@ onMounted(async () => {
             <Column header="Ср." sortable sortField="avgScore" style="min-width: 70px; text-align: center">
               <template #body="{ data }">
                 <div style="display: flex; justify-content: center">
-                  <Tag :value="String(avg(data))" :severity="avgSeverity(avg(data))" />
+                  <Tag :value="avg(data) !== null ? String(avg(data)) : '—'" :severity="avgSeverity(avg(data))" />
                 </div>
               </template>
             </Column>
