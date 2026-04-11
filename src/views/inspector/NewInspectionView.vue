@@ -96,7 +96,11 @@ async function submit() {
     await inspectionsApi.create({
       blockId: selectedBlock.value.id,
       date: date.value.toISOString().slice(0, 10),
-      ...scores.value,
+      shower: scores.value['shower'] ?? null,
+      toilet: scores.value['toilet'] ?? null,
+      hall: scores.value['hall'] ?? null,
+      kitchen: scores.value['kitchen'] ?? null,
+      roomA: scores.value['roomA'] ?? null,
       roomB: selectedBlock.value?.hasRoomB ? (scores.value['roomB'] ?? null) : null,
       comment: comment.value.trim() || null,
     })

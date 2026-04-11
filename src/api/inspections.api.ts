@@ -8,11 +8,11 @@ export interface InspectionDto {
   blockNumber: number
   date: string
   createdAt: string
-  shower: number
-  toilet: number
-  hall: number
-  kitchen: number
-  roomA: number
+  shower: number | null
+  toilet: number | null
+  hall: number | null
+  kitchen: number | null
+  roomA: number | null
   roomB: number | null
   comment: string | null
 }
@@ -20,11 +20,11 @@ export interface InspectionDto {
 export interface InspectionCreateDto {
   blockId: number
   date: string
-  shower: number
-  toilet: number
-  hall: number
-  kitchen: number
-  roomA: number
+  shower: number | null
+  toilet: number | null
+  hall: number | null
+  kitchen: number | null
+  roomA: number | null
   roomB: number | null
   comment: string | null
 }
