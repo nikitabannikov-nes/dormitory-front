@@ -59,6 +59,12 @@ const router = createRouter({
       component: () => import('@/views/admin/AllInspectionsView.vue'),
       meta: { requiresAuth: true, roles: ['ADMIN'] },
     },
+    {
+      path: '/admin/report',
+      name: 'admin-report',
+      component: () => import('@/views/admin/ReportView.vue'),
+      meta: { requiresAuth: true, roles: ['ADMIN'] },
+    },
 
     // Корень — редирект по роли
     {
