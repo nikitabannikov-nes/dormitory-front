@@ -3,8 +3,9 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
-COPY . .
-RUN npm run build
+COPY . .  
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+RUN npm run build-only
 
 # Stage 2: serve with Nginx
 FROM nginx:1.27-alpine
