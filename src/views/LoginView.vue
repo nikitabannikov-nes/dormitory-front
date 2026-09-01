@@ -32,7 +32,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="login-form">
+  <form class="login-form" autocomplete="on" @submit.prevent="submit">
     <h2 class="login-title">Вход в систему</h2>
 
     <div class="field">
@@ -40,9 +40,10 @@ async function submit() {
       <InputText
         id="username"
         v-model="username"
+        name="username"
+        autocomplete="username"
         placeholder="Введите логин"
         fluid
-        @keyup.enter="submit"
       />
     </div>
 
@@ -51,22 +52,22 @@ async function submit() {
       <Password
         id="password"
         v-model="password"
+        :inputProps="{ name: 'password', autocomplete: 'current-password' }"
         placeholder="Введите пароль"
         :feedback="false"
         toggleMask
         fluid
-        @keyup.enter="submit"
       />
     </div>
 
     <Button
+      type="submit"
       label="Войти"
       icon="pi pi-sign-in"
       :loading="loading"
       fluid
-      @click="submit"
     />
-  </div>
+  </form>
 </template>
 
 <style scoped>
