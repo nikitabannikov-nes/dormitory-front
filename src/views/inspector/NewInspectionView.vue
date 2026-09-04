@@ -1,40 +1,45 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 import { useAuthStore } from '@/stores/auth.store'
 import { inspectionsApi } from '@/api/inspections.api'
 import { extractErrorMessage } from '@/api/error'
 import { blocksApi, type BlockDto } from '@/api/blocks.api'
 import { usersApi } from '@/api/users.api'
+import { getScoreSeverity } from '@/utils/score'
 import Button from 'primevue/button'
-import Select from 'primevue/select'
 import DatePicker from 'primevue/datepicker'
-import Slider from 'primevue/slider'
 import Tag from 'primevue/tag'
 import Divider from 'primevue/divider'
 import Textarea from 'primevue/textarea'
+import Tabs from 'primevue/tabs'
+import TabList from 'primevue/tablist'
+import Tab from 'primevue/tab'
+import TabPanels from 'primevue/tabpanels'
+import TabPanel from 'primevue/tabpanel'
+import ProgressSpinner from 'primevue/progressspinner'
+import ScoreInput from '@/components/ScoreInput.vue'
+
+type ZoneKey = 'shower' | 'toilet' | 'hall' | 'kitchen' | 'roomA' | 'roomB'
+
+interface BlockRoundEntry {
+  scores: Record<ZoneKey, number | null>
+  closed: Record<ZoneKey, boolean>
+  comment: string
+  touched: boolean
+  status: 'idle' | 'saving' | 'saved' | 'error'
+  errorMessage?: string
+}
 
 const router = useRouter()
 const toast = useToast()
+const confirm = useConfirm()
 const auth = useAuthStore()
 
-const allBlocks = ref<BlockDto[]>([])
-const assignedFloors = ref<number[]>([])
-const loading = ref(false)
-const submitting = ref(false)
-
-// Форма
-const selectedBlock = ref<BlockDto | null>(null)
-const date = ref<Date>(new Date())
-const scores = ref<Record<string, number | null>>({ shower: 3, toilet: 3, hall: 3, kitchen: 3, roomA: 3, roomB: 3 })
-
-function toggleScore(key: string) {
-  scores.value[key] = scores.value[key] === null ? 3 : null
-}
-const comment = ref('')
-
-const zoneLabels: Record<keyof typeof scores.value, string> = {
+const zoneKeys: ZoneKey[] = ['shower', 'toilet', 'hall', 'kitchen', 'roomA', 'roomB']
+const zoneLabels: Record<ZoneKey, string> = {
   shower: 'Душевая',
   toilet: 'Туалет',
   hall: 'Коридор',
@@ -43,32 +48,109 @@ const zoneLabels: Record<keyof typeof scores.value, string> = {
   roomB: 'Комната Б',
 }
 
-// Только блоки на закреплённых этажах
-const availableBlocks = computed(() =>
-  allBlocks.value.filter((b) => assignedFloors.value.includes(b.floor)),
+const allBlocks = ref<BlockDto[]>([])
+const assignedFloors = ref<number[]>([])
+const loading = ref(false)
+const submitting = ref(false)
+
+// Обход
+const date = ref<Date>(new Date())
+const selectedFloor = ref<number>(0)
+const selectedBlockId = ref<number | null>(null)
+const roundState = reactive<Record<number, BlockRoundEntry>>({})
+
+function createEntry(): BlockRoundEntry {
+  const scores = {} as Record<ZoneKey, number | null>
+  const closed = {} as Record<ZoneKey, boolean>
+  for (const key of zoneKeys) {
+    scores[key] = null
+    closed[key] = false
+  }
+  return { scores, closed, comment: '', touched: false, status: 'idle' }
+}
+
+function zoneValue(entry: BlockRoundEntry, key: ZoneKey): number | null {
+  return entry.closed[key] ? null : entry.scores[key]
+}
+
+function getEntry(blockId: number): BlockRoundEntry {
+  if (!roundState[blockId]) roundState[blockId] = createEntry()
+  return roundState[blockId]
+}
+
+function blocksForFloor(floor: number): BlockDto[] {
+  return allBlocks.value.filter((b) => b.floor === floor).sort((a, b) => a.number - b.number)
+}
+
+function selectBlock(blockId: number) {
+  selectedBlockId.value = blockId
+  getEntry(blockId)
+}
+
+const currentBlock = computed<BlockDto | null>(
+  () => allBlocks.value.find((b) => b.id === selectedBlockId.value) ?? null,
+)
+const currentBlockHasRoomB = computed(() => currentBlock.value?.hasRoomB ?? false)
+const currentEntry = computed<BlockRoundEntry | null>(() =>
+  selectedBlockId.value != null ? (roundState[selectedBlockId.value] ?? null) : null,
 )
 
+function chipStatus(blockId: number): 'saved' | 'touched' | 'error' | 'none' {
+  const e = roundState[blockId]
+  if (!e) return 'none'
+  if (e.status === 'saved') return 'saved'
+  if (e.status === 'error') return 'error'
+  if (e.touched) return 'touched'
+  return 'none'
+}
+
+function markTouched(entry: BlockRoundEntry) {
+  entry.touched = true
+  entry.errorMessage = undefined
+  if (entry.status !== 'saving') entry.status = 'idle'
+}
+
+function setScore(entry: BlockRoundEntry, key: ZoneKey, value: number | null) {
+  entry.scores[key] = value
+  markTouched(entry)
+}
+
+function setClosed(entry: BlockRoundEntry, key: ZoneKey, value: boolean) {
+  entry.closed[key] = value
+  if (value) entry.scores[key] = null
+  markTouched(entry)
+}
+
+function setComment(entry: BlockRoundEntry, value: string) {
+  entry.comment = value
+  markTouched(entry)
+}
+
+const totalBlocksCount = computed(
+  () => allBlocks.value.filter((b) => assignedFloors.value.includes(b.floor)).length,
+)
+const touchedCount = computed(() => Object.values(roundState).filter((e) => e.touched).length)
+const pendingCount = computed(
+  () => Object.values(roundState).filter((e) => e.touched && e.status !== 'saved').length,
+)
+const hasUnsavedChanges = computed(() => pendingCount.value > 0)
+
 const avgScore = computed<number | null>(() => {
-  const vals = Object.entries(scores.value)
-    .filter(([key]) => key !== 'roomB' || selectedBlock.value?.hasRoomB)
-    .map(([, v]) => v)
+  if (!currentEntry.value) return null
+  const entry = currentEntry.value
+  const vals = zoneKeys
+    .filter((key) => key !== 'roomB' || currentBlockHasRoomB.value)
+    .map((key) => zoneValue(entry, key))
     .filter((v): v is number => v !== null)
   if (vals.length === 0) return null
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
 })
 
-function avgSeverity(val: number | null): 'success' | 'warn' | 'danger' | 'secondary' {
-  if (val === null) return 'secondary'
-  if (val >= 4) return 'success'
-  if (val >= 3) return 'warn'
-  return 'danger'
-}
-
-function scoreColor(val: number | null) {
-  if (val === null) return 'var(--p-text-muted-color)'
-  if (val >= 4) return '#22c55e'
-  if (val >= 3) return '#f97316'
-  return '#ef4444'
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (hasUnsavedChanges.value) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
 }
 
 onMounted(async () => {
@@ -79,41 +161,101 @@ onMounted(async () => {
       auth.userId ? usersApi.getFloors(auth.userId) : Promise.resolve([]),
     ])
     allBlocks.value = blocks
-    assignedFloors.value = floors
+    assignedFloors.value = [...floors].sort((a, b) => a - b)
+    if (assignedFloors.value.length > 0) {
+      selectedFloor.value = assignedFloors.value[0] ?? 0
+    }
   } finally {
     loading.value = false
   }
+  window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+})
+
+onBeforeRouteLeave((_to, _from, next) => {
+  if (!hasUnsavedChanges.value) {
+    next()
+    return
+  }
+  confirm.require({
+    message: 'Есть несохранённые оценки. Уйти со страницы?',
+    header: 'Подтверждение',
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: 'Остаться',
+    acceptLabel: 'Уйти',
+    acceptClass: 'p-button-danger',
+    accept: () => next(),
+    reject: () => next(false),
+  })
 })
 
 function toLocalDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-async function submit() {
-  if (!selectedBlock.value || !date.value) {
-    toast.add({ severity: 'warn', summary: 'Заполните все поля', life: 2000 })
+async function submitRound() {
+  if (!date.value) {
+    toast.add({ severity: 'warn', summary: 'Выберите дату обхода', life: 2000 })
+    return
+  }
+
+  const entries = Object.entries(roundState)
+    .map(([id, entry]) => ({ id: Number(id), entry }))
+    .filter(({ entry }) => entry.touched && entry.status !== 'saved')
+
+  if (entries.length === 0) {
+    toast.add({ severity: 'warn', summary: 'Нет заполненных блоков для сохранения', life: 2000 })
     return
   }
 
   submitting.value = true
+  let savedCount = 0
+  const failedBlocks: string[] = []
+
   try {
-    await inspectionsApi.create({
-      blockId: selectedBlock.value.id,
-      date: toLocalDateStr(date.value),
-      shower: scores.value['shower'] ?? null,
-      toilet: scores.value['toilet'] ?? null,
-      hall: scores.value['hall'] ?? null,
-      kitchen: scores.value['kitchen'] ?? null,
-      roomA: scores.value['roomA'] ?? null,
-      roomB: selectedBlock.value?.hasRoomB ? (scores.value['roomB'] ?? null) : null,
-      comment: comment.value.trim() || null,
-    })
-    toast.add({ severity: 'success', summary: 'Обход сохранён', life: 2000 })
-    router.push('/inspections')
-  } catch (err) {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: extractErrorMessage(err, 'Не удалось сохранить обход'), life: 4000 })
+    for (const { id, entry } of entries) {
+      const block = allBlocks.value.find((b) => b.id === id)
+      if (!block) continue
+      entry.status = 'saving'
+      try {
+        await inspectionsApi.create({
+          blockId: id,
+          date: toLocalDateStr(date.value),
+          shower: zoneValue(entry, 'shower'),
+          toilet: zoneValue(entry, 'toilet'),
+          hall: zoneValue(entry, 'hall'),
+          kitchen: zoneValue(entry, 'kitchen'),
+          roomA: zoneValue(entry, 'roomA'),
+          roomB: block.hasRoomB ? zoneValue(entry, 'roomB') : null,
+          comment: entry.comment.trim() || null,
+        })
+        entry.status = 'saved'
+        entry.errorMessage = undefined
+        savedCount++
+      } catch (err) {
+        entry.status = 'error'
+        entry.errorMessage = extractErrorMessage(err, 'Не удалось сохранить блок')
+        failedBlocks.push(`Блок ${block.number}: ${entry.errorMessage}`)
+      }
+    }
   } finally {
     submitting.value = false
+  }
+
+  const attempted = savedCount + failedBlocks.length
+  if (failedBlocks.length === 0) {
+    toast.add({ severity: 'success', summary: `Обход сохранён: ${savedCount} из ${attempted}`, life: 2500 })
+    router.push('/inspections')
+  } else {
+    toast.add({
+      severity: savedCount > 0 ? 'warn' : 'error',
+      summary: `Сохранено ${savedCount} из ${attempted} блоков`,
+      detail: failedBlocks.join('; '),
+      life: 6000,
+    })
   }
 }
 </script>
@@ -126,95 +268,113 @@ async function submit() {
     </div>
 
     <div class="form-card">
-      <!-- Блок и дата -->
-      <div class="form-row">
-        <div class="field">
-          <label>Блок</label>
-          <Select
-            v-model="selectedBlock"
-            :options="availableBlocks"
-            optionLabel="number"
-            placeholder="Выберите блок"
-            :loading="loading"
-            fluid
-          >
-            <template #option="{ option }">
-              Блок {{ option.number }}
-            </template>
-            <template #value="{ value }">
-              <span v-if="value">Блок {{ value.number }}</span>
-              <span v-else class="text-muted">Выберите блок</span>
-            </template>
-          </Select>
-          <small v-if="!loading && availableBlocks.length === 0" class="text-danger">
-            Вам не назначены этажи
-          </small>
-        </div>
-
-        <div class="field">
-          <label>Дата обхода</label>
-          <DatePicker v-model="date" dateFormat="dd.mm.yy" :maxDate="new Date()" fluid />
-        </div>
+      <div class="field date-field">
+        <label>Дата обхода</label>
+        <DatePicker v-model="date" dateFormat="dd.mm.yy" :maxDate="new Date()" style="max-width: 220px" />
       </div>
 
       <Divider />
 
-      <!-- Оценки -->
-      <div class="scores-header">
-        <span class="scores-title">Оценки зон (1 — плохо, 5 — отлично)</span>
-        <div class="avg-badge">
-          Средняя: <Tag :value="avgScore !== null ? String(avgScore) : '—'" :severity="avgSeverity(avgScore)" class="ml-1" />
-        </div>
+      <div v-if="loading" class="flex justify-content-center" style="padding: 2rem 0">
+        <ProgressSpinner />
       </div>
 
-      <div class="scores-grid">
-        <div
-          v-for="(_, key) in scores"
-          v-show="key !== 'roomB' || selectedBlock?.hasRoomB"
-          :key="key"
-          class="score-item"
-        >
-          <div class="score-item__header">
-            <span class="score-item__label">{{ zoneLabels[key] }}</span>
-            <div class="score-item__right">
-              <button
-                class="closed-btn"
-                :class="{ 'closed-btn--active': scores[key] === null }"
-                @click="toggleScore(key)"
-                :title="scores[key] === null ? 'Отметить как проверено' : 'Закрыта / не проверялась'"
-              ><i :class="scores[key] === null ? 'pi pi-lock' : 'pi pi-unlock'" /></button>
-              <span v-if="scores[key] !== null" class="score-item__value" :style="{ color: scoreColor(scores[key] ?? null) }">{{ scores[key] }}</span>
-              <span v-else class="score-item__value score-item__value--none">—</span>
+      <small v-else-if="assignedFloors.length === 0" class="text-danger">
+        Вам не назначены этажи
+      </small>
+
+      <template v-else>
+        <Tabs v-model:value="selectedFloor">
+          <TabList>
+            <Tab v-for="f in assignedFloors" :key="f" :value="f">{{ f }} этаж</Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel v-for="f in assignedFloors" :key="f" :value="f">
+              <div class="block-grid">
+                <button
+                  v-for="b in blocksForFloor(f)"
+                  :key="b.id"
+                  type="button"
+                  class="block-chip"
+                  :class="[
+                    `block-chip--${chipStatus(b.id)}`,
+                    { 'block-chip--active': selectedBlockId === b.id },
+                  ]"
+                  @click="selectBlock(b.id)"
+                >
+                  <span>Блок {{ b.number }}</span>
+                  <i
+                    v-if="chipStatus(b.id) === 'saved'"
+                    class="pi pi-check-circle block-chip__badge block-chip__badge--saved"
+                  />
+                  <i
+                    v-else-if="chipStatus(b.id) === 'error'"
+                    class="pi pi-exclamation-circle block-chip__badge block-chip__badge--error"
+                  />
+                  <span
+                    v-else-if="chipStatus(b.id) === 'touched'"
+                    class="block-chip__badge block-chip__badge--touched"
+                  />
+                </button>
+              </div>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+
+        <template v-if="currentEntry && currentBlock">
+          <Divider />
+
+          <div class="scores-header">
+            <span class="scores-title">Блок {{ currentBlock.number }} — оценки зон (1 — плохо, 5 — отлично)</span>
+            <div class="avg-badge">
+              Средняя: <Tag :value="avgScore !== null ? String(avgScore) : '—'" :severity="getScoreSeverity(avgScore)" class="ml-1" />
             </div>
           </div>
-          <template v-if="scores[key] !== null">
-            <Slider v-model="scores[key]" :min="1" :max="5" :step="1" />
-            <div class="score-item__marks">
-              <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
-            </div>
-          </template>
-          <p v-else class="score-item__closed-hint">закрыта / не проверялась</p>
-        </div>
-      </div>
 
-      <Divider />
+          <div class="scores-grid">
+            <ScoreInput
+              v-for="key in zoneKeys"
+              v-show="key !== 'roomB' || currentBlockHasRoomB"
+              :key="key"
+              :label="zoneLabels[key]"
+              :model-value="currentEntry.scores[key]"
+              :closed="currentEntry.closed[key]"
+              @update:model-value="(v) => currentEntry && setScore(currentEntry, key, v)"
+              @update:closed="(v) => currentEntry && setClosed(currentEntry, key, v)"
+            />
+          </div>
 
-      <div class="field">
-        <label class="field-label">Замечания</label>
-        <Textarea v-model="comment" rows="3" autoResize fluid placeholder="Опишите замечания по блоку..." />
-      </div>
+          <p v-if="currentEntry.status === 'error'" class="text-danger block-error">
+            {{ currentEntry.errorMessage }}
+          </p>
 
-      <Divider />
+          <Divider />
 
-      <div class="form-actions">
-        <Button label="Отмена" severity="secondary" outlined @click="router.back()" />
-        <Button
-          label="Сохранить обход"
-          icon="pi pi-save"
-          :loading="submitting"
-          @click="submit"
-        />
-      </div>
+          <div class="field">
+            <label class="field-label">Замечания</label>
+            <Textarea
+              :model-value="currentEntry.comment"
+              @update:model-value="(v) => currentEntry && setComment(currentEntry, String(v ?? ''))"
+              rows="3"
+              autoResize
+              fluid
+              placeholder="Опишите замечания по блоку..."
+            />
+          </div>
+        </template>
+        <p v-else class="text-muted select-hint">Выберите блок на этаже, чтобы поставить оценки</p>
+      </template>
+    </div>
+
+    <div v-if="!loading && assignedFloors.length > 0" class="round-footer">
+      <span class="round-footer__count">Заполнено: {{ touchedCount }} из {{ totalBlocksCount }}</span>
+      <Button
+        :label="`Сохранить обход (${pendingCount})`"
+        icon="pi pi-save"
+        :loading="submitting"
+        :disabled="pendingCount === 0"
+        @click="submitRound"
+      />
     </div>
   </div>
 </template>
@@ -235,23 +395,12 @@ async function submit() {
   padding: 2rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   max-width: 760px;
-  margin: 0 auto;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  margin: 0 auto 5.5rem;
 }
 
 @media (max-width: 767px) {
   .form-card {
     padding: 1.25rem;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-    gap: 1rem;
   }
 
   .scores-grid {
@@ -278,7 +427,15 @@ async function submit() {
   color: var(--p-text-muted-color);
 }
 
+.date-field {
+  max-width: 260px;
+}
+
 .text-danger { color: var(--p-red-500); font-size: 0.8rem; }
+
+.select-hint {
+  padding: 1rem 0;
+}
 
 .scores-header {
   display: flex;
@@ -301,81 +458,66 @@ async function submit() {
   gap: 1.75rem 2rem;
 }
 
-.score-item__header {
+.block-error {
+  margin-top: -0.75rem;
+}
+
+.block-grid {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.25rem 0 0.5rem;
 }
 
-.score-item__right {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.closed-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  color: var(--p-text-muted-color);
-  font-size: 0.8rem;
-  line-height: 1;
-  transition: color 0.15s, background 0.15s;
-}
-
-.closed-btn:hover {
+.block-chip {
+  position: relative;
+  min-width: 84px;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 2px solid var(--p-surface-300);
+  background: var(--p-surface-0);
   color: var(--p-text-color);
-  background: var(--p-surface-100);
-}
-
-.closed-btn--active {
-  color: var(--p-orange-500);
-}
-
-.closed-btn--active:hover {
-  color: var(--p-orange-600);
-}
-
-.score-item__label {
+  font-weight: 600;
   font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.score-item__value {
-  font-size: 1.1rem;
-  font-weight: 700;
-  transition: color 0.2s;
-  width: 1.2rem;
-  text-align: right;
-}
-
-.score-item__value--none {
-  color: var(--p-text-muted-color);
-}
-
-.score-item__closed-hint {
-  margin: 0.25rem 0 0;
-  font-size: 0.78rem;
-  color: var(--p-text-muted-color);
-  font-style: italic;
-}
-
-.score-item__marks {
+  cursor: pointer;
   display: flex;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: var(--p-text-muted-color);
-  margin-top: 0.25rem;
-  padding: 0 2px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.block-chip:hover {
+  border-color: var(--p-surface-400);
+}
+
+.block-chip--active {
+  border-color: var(--p-primary-color);
+  background: var(--p-primary-50);
+}
+
+.block-chip--saved {
+  border-color: var(--p-green-300);
+}
+
+.block-chip--error {
+  border-color: var(--p-red-300);
+}
+
+.block-chip__badge--saved {
+  color: var(--p-green-500);
+}
+
+.block-chip__badge--error {
+  color: var(--p-red-500);
+}
+
+.block-chip__badge--touched {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--p-orange-500);
 }
 
 .field-label {
@@ -384,16 +526,27 @@ async function submit() {
   color: var(--p-text-muted-color);
 }
 
-.optional {
-  font-weight: 400;
-  font-style: italic;
-}
-
-.form-actions {
+.round-footer {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--p-surface-0);
+  border-top: 1px solid var(--p-surface-200);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  padding: 0.85rem 1.5rem;
+  margin: 0 auto;
+  max-width: 760px;
+  border-radius: 10px 10px 0 0;
 }
 
-
+.round-footer__count {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+}
 </style>
