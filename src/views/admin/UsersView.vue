@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
-import { usersApi, type UserDto, type UserUpdateDto, type Role } from '@/api/users.api'
+import { usersApi, type UserDto, type UserUpdateDto, type AdminCreateUserDto, type Role } from '@/api/users.api'
 import { blocksApi, type BlockDto } from '@/api/blocks.api'
 import { extractErrorMessage } from '@/api/error'
 import RoleChip from '@/components/RoleChip.vue'
@@ -14,6 +14,7 @@ import Tag from 'primevue/tag'
 import ProgressSpinner from 'primevue/progressspinner'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import Password from 'primevue/password'
 import Select from 'primevue/select'
 
 const router = useRouter()
@@ -23,11 +24,33 @@ const confirm = useConfirm()
 const users = ref<UserDto[]>([])
 const blocks = ref<BlockDto[]>([])
 const loading = ref(true)
+const search = ref('')
+
+const filteredUsers = computed(() => {
+  if (!search.value.trim()) return users.value
+  const q = search.value.trim().toLowerCase()
+  return users.value.filter(
+    (u) =>
+      u.fio.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q) ||
+      String(u.blockNumber ?? '').includes(q),
+  )
+})
 
 const editDialog = ref(false)
 const saving = ref(false)
 const editForm = ref<{ id: number; fio: string; role: Role; blockId: number | null }>({
   id: 0,
+  fio: '',
+  role: 'USER',
+  blockId: null,
+})
+
+const createDialog = ref(false)
+const creating = ref(false)
+const createForm = ref<{ username: string; password: string; fio: string; role: Role; blockId: number | null }>({
+  username: '',
+  password: '',
   fio: '',
   role: 'USER',
   blockId: null,
@@ -80,6 +103,32 @@ async function saveEdit() {
   }
 }
 
+function openCreate() {
+  createForm.value = { username: '', password: '', fio: '', role: 'USER', blockId: null }
+  createDialog.value = true
+}
+
+async function createUser() {
+  creating.value = true
+  try {
+    const dto: AdminCreateUserDto = {
+      username: createForm.value.username.trim(),
+      password: createForm.value.password,
+      fio: createForm.value.fio.trim() || null,
+      role: createForm.value.role,
+      blockId: createForm.value.blockId,
+    }
+    const created = await usersApi.create(dto)
+    users.value.push(created)
+    createDialog.value = false
+    toast.add({ severity: 'success', summary: 'Пользователь создан', life: 2000 })
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: extractErrorMessage(err, 'Не удалось создать пользователя'), life: 4000 })
+  } finally {
+    creating.value = false
+  }
+}
+
 function deleteUser(user: UserDto) {
   const hasInspections = user.role === 'INSPECTOR' || user.role === 'ADMIN'
   const message = hasInspections
@@ -110,15 +159,27 @@ onMounted(load)
 
 <template>
   <div>
-    <h1 class="page-title">Пользователи</h1>
+    <div class="page-header">
+      <h1 class="page-title">Пользователи</h1>
+      <Button label="Добавить пользователя" icon="pi pi-plus" @click="openCreate" />
+    </div>
 
     <div v-if="loading" class="flex justify-content-center mt-6">
       <ProgressSpinner />
     </div>
 
     <div v-else class="card">
+      <div class="filters">
+        <InputText
+          v-model="search"
+          placeholder="Поиск по ФИО, логину или блоку..."
+          class="filter-input"
+        />
+        <span class="filter-count">Показано: {{ filteredUsers.length }}</span>
+      </div>
+
       <div class="table-wrapper">
-        <DataTable :value="users" :rows="10" paginator stripedRows>
+        <DataTable :value="filteredUsers" :rows="10" paginator stripedRows>
           <Column field="fio" header="ФИО" sortable style="min-width: 140px" />
           <Column field="username" header="Логин" style="min-width: 110px" />
           <Column header="Роль" sortable sortField="role" style="min-width: 110px">
@@ -223,17 +284,105 @@ onMounted(load)
         <Button label="Сохранить" icon="pi pi-save" :loading="saving" @click="saveEdit" />
       </template>
     </Dialog>
+
+    <!-- Диалог создания пользователя -->
+    <Dialog
+      v-model:visible="createDialog"
+      header="Новый пользователь"
+      :style="{ width: '420px' }"
+      modal
+    >
+      <div class="edit-form">
+        <div class="field">
+          <label>Логин *</label>
+          <InputText v-model="createForm.username" class="w-full" />
+        </div>
+
+        <div class="field">
+          <label>Пароль *</label>
+          <Password v-model="createForm.password" class="w-full" inputClass="w-full" :feedback="false" toggleMask />
+        </div>
+
+        <div class="field">
+          <label>ФИО</label>
+          <InputText v-model="createForm.fio" class="w-full" placeholder="Без имени" />
+        </div>
+
+        <div class="field">
+          <label>Роль</label>
+          <Select
+            v-model="createForm.role"
+            :options="roleOptions"
+            optionLabel="label"
+            optionValue="value"
+            class="w-full"
+          />
+        </div>
+
+        <div class="field">
+          <label>Блок</label>
+          <Select
+            v-model="createForm.blockId"
+            :options="[{ label: '— без блока —', value: null }, ...blocks.map(b => ({ label: `Блок ${b.number} (этаж ${b.floor})`, value: b.id }))]"
+            optionLabel="label"
+            optionValue="value"
+            class="w-full"
+            placeholder="Выберите блок"
+          />
+        </div>
+      </div>
+
+      <template #footer>
+        <Button label="Отмена" severity="secondary" outlined @click="createDialog = false" />
+        <Button
+          label="Создать"
+          icon="pi pi-plus"
+          :loading="creating"
+          :disabled="!createForm.username.trim() || createForm.password.length < 6"
+          @click="createUser"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <style scoped>
-.page-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.5rem; }
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.page-title { font-size: 1.5rem; font-weight: 700; }
 
 .card {
   background: var(--p-surface-0);
   border-radius: 10px;
   padding: 1.5rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  min-width: 220px;
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.filter-count {
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+  margin-left: auto;
 }
 
 .text-muted { color: var(--p-text-muted-color); }

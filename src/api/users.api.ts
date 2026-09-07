@@ -17,12 +17,23 @@ export interface UserUpdateDto {
   blockId: number | null
 }
 
+export interface AdminCreateUserDto {
+  username: string
+  password: string
+  fio?: string | null
+  role?: Role | null
+  blockId?: number | null
+}
+
 export const usersApi = {
   getMe: () => api.get<UserDto>('/users/me').then((r) => r.data),
 
   getAll: () => api.get<UserDto[]>('/users').then((r) => r.data),
 
   getById: (id: number) => api.get<UserDto>(`/users/${id}`).then((r) => r.data),
+
+  create: (data: AdminCreateUserDto) =>
+    api.post<UserDto>('/users', data).then((r) => r.data),
 
   update: (id: number, data: UserUpdateDto) =>
     api.put<UserDto>(`/users/${id}`, data).then((r) => r.data),

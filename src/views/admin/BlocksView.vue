@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import { blocksApi, type BlockDto } from '@/api/blocks.api'
@@ -9,6 +9,7 @@ import Column from 'primevue/column'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
 import ProgressSpinner from 'primevue/progressspinner'
 import Checkbox from 'primevue/checkbox'
 
@@ -19,6 +20,15 @@ const blocks = ref<BlockDto[]>([])
 const loading = ref(true)
 const showDialog = ref(false)
 const saving = ref(false)
+const search = ref('')
+
+const filteredBlocks = computed(() => {
+  if (!search.value.trim()) return blocks.value
+  const q = search.value.trim().toLowerCase()
+  return blocks.value.filter(
+    (b) => String(b.number).includes(q) || String(b.floor).includes(q),
+  )
+})
 
 const form = ref({ number: null as number | null, floor: null as number | null, hasRoomB: true })
 
@@ -83,8 +93,17 @@ onMounted(load)
     </div>
 
     <div v-else class="card">
+      <div class="filters">
+        <InputText
+          v-model="search"
+          placeholder="Поиск по номеру или этажу..."
+          class="filter-input"
+        />
+        <span class="filter-count">Показано: {{ filteredBlocks.length }}</span>
+      </div>
+
       <div class="table-wrapper">
-        <DataTable :value="blocks" :rows="20" paginator stripedRows>
+        <DataTable :value="filteredBlocks" :rows="20" paginator stripedRows>
           <Column field="number" header="Номер блока" sortable style="min-width: 120px" />
           <Column field="floor" header="Этаж" sortable style="min-width: 80px" />
           <Column header="Действия" style="width: 100px; min-width: 80px">
@@ -147,6 +166,26 @@ onMounted(load)
   border-radius: 10px;
   padding: 1.5rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  min-width: 220px;
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.filter-count {
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+  margin-left: auto;
 }
 
 .dialog-form {

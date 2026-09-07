@@ -22,6 +22,10 @@ const loading = ref(true)
 const search = ref('')
 const dateRange = ref<[Date, Date] | null>(null)
 
+function toLocalYMD(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function avg(i: InspectionDto): number | null {
   const vals = [i.shower, i.toilet, i.hall, i.kitchen, i.roomA, i.roomB].filter((v): v is number => v != null)
   if (vals.length === 0) return null
@@ -48,9 +52,10 @@ const filtered = computed(() => {
   }
 
   if (dateRange.value?.[0] && dateRange.value?.[1]) {
-    const [from, to] = dateRange.value
+    const from = toLocalYMD(dateRange.value[0])
+    const to = toLocalYMD(dateRange.value[1])
     result = result.filter((i) => {
-      const d = new Date(i.date)
+      const d = i.date.slice(0, 10)
       return d >= from && d <= to
     })
   }

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import { useAuthStore } from '@/stores/auth.store'
-import { inspectionsApi } from '@/api/inspections.api'
+import { inspectionsApi, type InspectionDto } from '@/api/inspections.api'
 import { extractErrorMessage } from '@/api/error'
 import { blocksApi, type BlockDto } from '@/api/blocks.api'
 import { usersApi } from '@/api/users.api'
@@ -21,6 +21,7 @@ import TabPanels from 'primevue/tabpanels'
 import TabPanel from 'primevue/tabpanel'
 import ProgressSpinner from 'primevue/progressspinner'
 import ScoreInput from '@/components/ScoreInput.vue'
+import ScoreBar from '@/components/ScoreBar.vue'
 
 type ZoneKey = 'shower' | 'toilet' | 'hall' | 'kitchen' | 'roomA' | 'roomB'
 
@@ -94,6 +95,45 @@ const currentBlockHasRoomB = computed(() => currentBlock.value?.hasRoomB ?? fals
 const currentEntry = computed<BlockRoundEntry | null>(() =>
   selectedBlockId.value != null ? (roundState[selectedBlockId.value] ?? null) : null,
 )
+
+// История последних обходов по выбранному блоку
+const RECENT_PAGE_SIZE = 3
+const recentInspections = ref<InspectionDto[]>([])
+const recentLoading = ref(false)
+const recentPage = ref(0)
+
+function historyAvg(i: InspectionDto): number | null {
+  const vals = [i.shower, i.toilet, i.hall, i.kitchen, i.roomA, i.roomB].filter(
+    (v): v is number => v != null,
+  )
+  if (vals.length === 0) return null
+  return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)
+}
+
+const recentPageCount = computed(() => Math.ceil(recentInspections.value.length / RECENT_PAGE_SIZE))
+const pagedRecentInspections = computed(() =>
+  recentInspections.value.slice(
+    recentPage.value * RECENT_PAGE_SIZE,
+    recentPage.value * RECENT_PAGE_SIZE + RECENT_PAGE_SIZE,
+  ),
+)
+
+watch(selectedBlockId, async (blockId) => {
+  recentPage.value = 0
+  recentInspections.value = []
+  if (blockId == null) return
+  recentLoading.value = true
+  try {
+    const data = await inspectionsApi.getByBlock(blockId)
+    recentInspections.value = data
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5)
+  } catch {
+    recentInspections.value = []
+  } finally {
+    recentLoading.value = false
+  }
+})
 
 function chipStatus(blockId: number): 'saved' | 'touched' | 'error' | 'none' {
   const e = roundState[blockId]
@@ -321,6 +361,63 @@ async function submitRound() {
           </TabPanels>
         </Tabs>
 
+        <template v-if="currentBlock">
+          <Divider />
+
+          <div class="recent-block">
+            <div class="recent-block__header">
+              <span class="recent-block__title">Последние обходы блока {{ currentBlock.number }}</span>
+              <span v-if="recentPageCount > 1" class="recent-block__pager">
+                <Button
+                  icon="pi pi-chevron-left"
+                  text
+                  size="small"
+                  :disabled="recentPage === 0"
+                  @click="recentPage--"
+                />
+                {{ recentPage + 1 }} / {{ recentPageCount }}
+                <Button
+                  icon="pi pi-chevron-right"
+                  text
+                  size="small"
+                  :disabled="recentPage >= recentPageCount - 1"
+                  @click="recentPage++"
+                />
+              </span>
+            </div>
+
+            <div v-if="recentLoading" class="flex justify-content-center" style="padding: 1rem 0">
+              <ProgressSpinner style="width: 32px; height: 32px" strokeWidth="4" />
+            </div>
+            <p v-else-if="recentInspections.length === 0" class="text-muted recent-block__empty">
+              Прошлых обходов по этому блоку ещё не было
+            </p>
+            <div v-else class="recent-block__list">
+              <div v-for="i in pagedRecentInspections" :key="i.id" class="recent-item">
+                <div class="recent-item__meta">
+                  <span class="recent-item__date">{{ new Date(i.date).toLocaleDateString('ru-RU') }}</span>
+                  <span class="recent-item__inspector">{{ i.inspectorFio }}</span>
+                  <Tag
+                    :value="historyAvg(i) !== null ? String(historyAvg(i)) : '—'"
+                    :severity="getScoreSeverity(historyAvg(i))"
+                  />
+                </div>
+                <div class="recent-item__scores">
+                  <ScoreBar :value="i.shower" label="Душ" />
+                  <ScoreBar :value="i.toilet" label="Туалет" />
+                  <ScoreBar :value="i.hall" label="Коридор" />
+                  <ScoreBar :value="i.kitchen" label="Кухня" />
+                  <ScoreBar :value="i.roomA" label="Комн. А" />
+                  <ScoreBar v-if="currentBlockHasRoomB" :value="i.roomB" label="Комн. Б" />
+                </div>
+                <p v-if="i.comment" class="recent-item__comment">
+                  <i class="pi pi-exclamation-circle" /> {{ i.comment }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </template>
+
         <template v-if="currentEntry && currentBlock">
           <Divider />
 
@@ -396,23 +493,6 @@ async function submitRound() {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   max-width: 760px;
   margin: 0 auto 5.5rem;
-}
-
-@media (max-width: 767px) {
-  .form-card {
-    padding: 1.25rem;
-  }
-
-  .scores-grid {
-    grid-template-columns: 1fr;
-    gap: 1.25rem;
-  }
-
-  .scores-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
 }
 
 .field {
@@ -548,5 +628,110 @@ async function submitRound() {
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--p-text-muted-color);
+}
+
+.recent-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.recent-block__title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--p-text-muted-color);
+}
+
+.recent-block__pager {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+}
+
+.recent-block__empty {
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+  padding: 0.5rem 0;
+}
+
+.recent-block__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.recent-item {
+  background: var(--p-surface-50);
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recent-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.recent-item__date {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.recent-item__inspector {
+  font-size: 0.8rem;
+  color: var(--p-text-muted-color);
+  flex: 1;
+}
+
+.recent-item__scores {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recent-item__comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  background: var(--p-orange-50);
+  border-left: 3px solid var(--p-orange-400);
+  color: var(--p-orange-800);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.recent-item__comment .pi {
+  color: var(--p-orange-500);
+  margin-top: 2px;
+}
+
+@media (max-width: 767px) {
+  .form-card {
+    padding: 1.25rem;
+  }
+
+  .scores-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .scores-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
 }
 </style>
