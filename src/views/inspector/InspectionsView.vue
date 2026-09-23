@@ -13,10 +13,12 @@ import ProgressSpinner from 'primevue/progressspinner'
 import InputText from 'primevue/inputtext'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
+import { useAuthStore } from '@/stores/auth.store'
 
 const router = useRouter()
 const toast = useToast()
 const confirm = useConfirm()
+const auth = useAuthStore()
 
 interface InspectionRow extends InspectionDto { avgScore: number | null }
 
@@ -42,7 +44,11 @@ const filtered = computed(() => {
   const q = search.value.toLowerCase()
   return inspections.value.filter((i) => {
     const localDate = new Date(i.date).toLocaleDateString('ru-RU')
-    return String(i.blockNumber).includes(q) || localDate.includes(q)
+    return (
+      String(i.blockNumber).includes(q) ||
+      localDate.includes(q) ||
+      i.inspectorFio.toLowerCase().includes(q)
+    )
   })
 })
 
@@ -81,7 +87,7 @@ onMounted(async () => {
 <template>
   <div>
     <div class="page-header">
-      <h1 class="page-title">Мои обходы</h1>
+      <h1 class="page-title">Обходы</h1>
       <Button
         label="Новый обход"
         icon="pi pi-plus"
@@ -99,7 +105,7 @@ onMounted(async () => {
           <InputIcon class="pi pi-search" />
           <InputText
             v-model="search"
-            placeholder="Поиск по блоку или дате..."
+            placeholder="Поиск по блоку, дате или инспектору..."
             class="search-input"
           />
         </IconField>
@@ -113,6 +119,7 @@ onMounted(async () => {
             </template>
           </Column>
           <Column field="blockNumber" header="Блок" sortable style="min-width: 70px" />
+          <Column field="inspectorFio" header="Инспектор" sortable style="min-width: 140px" />
 
           <Column header="Ср." sortable sortField="avgScore" style="min-width: 70px; text-align: center">
             <template #body="{ data }">
@@ -145,6 +152,7 @@ onMounted(async () => {
           <Column style="width: 60px; min-width: 60px">
             <template #body="{ data }">
               <Button
+                v-if="data.inspectorId === auth.userId"
                 icon="pi pi-trash"
                 size="small"
                 text
