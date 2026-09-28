@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { inspectionsApi, type InspectionDto } from '@/api/inspections.api'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -16,11 +17,29 @@ interface InspectionRow extends InspectionDto { avgScore: number | null }
 
 const toast = useToast()
 const confirm = useConfirm()
+const route = useRoute()
+const router = useRouter()
 
 const inspections = ref<InspectionRow[]>([])
 const loading = ref(true)
 const search = ref('')
 const dateRange = ref<[Date, Date] | null>(null)
+
+const blockIdFilter = computed(() => {
+  const raw = route.query.blockId
+  const n = Number(raw)
+  return raw != null && raw !== '' && !Number.isNaN(n) ? n : null
+})
+
+const blockNumberFilter = computed(() => {
+  if (route.query.blockNumber != null) return String(route.query.blockNumber)
+  const match = inspections.value.find((i) => i.blockId === blockIdFilter.value)
+  return match ? String(match.blockNumber) : null
+})
+
+function clearBlockFilter() {
+  router.push({ name: 'admin-inspections' })
+}
 
 function toLocalYMD(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -41,6 +60,10 @@ function avgSeverity(val: number | null): 'success' | 'warn' | 'danger' | 'secon
 
 const filtered = computed(() => {
   let result = inspections.value
+
+  if (blockIdFilter.value != null) {
+    result = result.filter((i) => i.blockId === blockIdFilter.value)
+  }
 
   if (search.value) {
     const q = search.value.toLowerCase()
@@ -111,6 +134,14 @@ onMounted(async () => {
     <div v-else class="card">
       <!-- Фильтры -->
       <div class="filters">
+        <Tag
+          v-if="blockIdFilter != null"
+          class="block-filter-chip"
+          severity="info"
+        >
+          Блок №{{ blockNumberFilter ?? blockIdFilter }}
+          <i class="pi pi-times" @click="clearBlockFilter" />
+        </Tag>
         <InputText
           v-model="search"
           placeholder="Блок или инспектор..."
@@ -221,6 +252,17 @@ onMounted(async () => {
   font-size: 0.85rem;
   color: var(--p-text-muted-color);
   margin-left: auto;
+}
+
+.block-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.block-filter-chip .pi-times {
+  cursor: pointer;
+  font-size: 0.75rem;
 }
 
 .scores-col {

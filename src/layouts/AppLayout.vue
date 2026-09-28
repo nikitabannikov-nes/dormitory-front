@@ -35,6 +35,7 @@ const navItems = computed(() => {
 
   if (auth.role === 'ADMIN') {
     items.push({ label: 'Все обходы', icon: 'pi pi-table', to: '/admin/inspections' })
+    items.push({ label: 'Статистика', icon: 'pi pi-chart-bar', to: '/admin/statistics' })
     items.push({ label: 'Пользователи', icon: 'pi pi-users', to: '/admin/users' })
     items.push({ label: 'Блоки', icon: 'pi pi-building', to: '/admin/blocks' })
     items.push({ label: 'Отчёт', icon: 'pi pi-file-word', to: '/admin/report' })
